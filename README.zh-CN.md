@@ -80,15 +80,18 @@ magpie 会在 provider 旁边显示账号的积分。数据取自登录时已经
 
 | 显示项 | 来源 |
 |---|---|
-| 计划名 | `plan.name` |
-| 重置时间 | `plan.next_refresh_date`，没有则用 `plan.next_due_date` |
-| 已用积分 | `quota.used / quota.total`，显示为百分比与 `已用 / 总量 credits` |
+| `额度 · Credits` 百分比（`used` + `limit: 100`） | `quota.total` 有值（付费版有总量）时用 `quota.used / quota.total` |
+| `额度 · Credits` 余额（`balance` + `unit`，不发 `used`/`limit`） | `quota.total` 为 null（免费版没有总量，只有钱包）时用 `quota.remaining` |
+| `停用 · 额度耗尽`（`used: 100`） | `quota.exceeded` —— 让路由跳过该号的唯一开关 |
+| `说明 · 计划 <套餐名>` | `plan.name` |
+| 重置时间 | `plan.next_refresh_date`，没有则用 `plan.next_due_date`；两者都为空则不设 `until` |
 
-读取被拒（401/403）会标记登录失效；其它错误会脱敏后报出。实现见 `index.mjs`
-里的 `qwenworkUsage()`。`magpie quota qwenwork` 会在终端打印：
+读取被拒（401/403）会标记登录失效；其余读不到的情况收敛成一条
+`说明 · 额度不可读（<原因>）` 窗口 —— 绝不写顶层 `error`，那会整块替换卡片。
+实现见 `index.mjs` 里的 `qwenworkUsage()`。`magpie quota qwenwork` 会在终端打印：
 
 ```text
-qwenwork · Your Plan · until Nov 1 · you@example.com  subscription  Credits 1% (17.94 / 2000 credits)
+qwenwork · 个人免费版 · 七七@example.com  subscription  额度 · Credits 399.94 credits  说明 · 计划 个人免费版
 ```
 
 ## 说明
@@ -101,6 +104,7 @@ qwenwork · Your Plan · until Nov 1 · you@example.com  subscription  Credits 1
 ## 验证
 
 ```sh
+node --test        # 离线：额度卡片的形状与命名
 node check.mjs     # 离线：mock 上游
 ./live-e2e.sh      # 在线：经网关验证模型、对话、流式
 ```
@@ -113,3 +117,4 @@ node check.mjs     # 离线：mock 上游
 - `defaults.json` — 已核实的桌面端配置。
 - `icon.png` — provider 图标，即千问办公应用图标。
 - `check.mjs`、`live-e2e.sh` — 离线与在线检查。
+- `test/` — 额度卡片的测试（`node --test`）。

@@ -83,16 +83,19 @@ Magpie shows the account's credits beside the provider. They come from the same
 
 | Shown | From |
 |---|---|
-| plan name | `plan.name` |
-| reset time | `plan.next_refresh_date`, else `plan.next_due_date` |
-| credits used | `quota.used / quota.total`, as a percentage and `used / total credits` |
+| `额度 · Credits` as a percentage (`used` + `limit: 100`) | `quota.used / quota.total` when `total` is set — a paid plan caps credits |
+| `额度 · Credits` as a balance (`balance` + `unit`, no `used`/`limit`) | `quota.remaining` when `total` is null — the free plan has no cap, only a wallet |
+| `停用 · 额度耗尽` (`used: 100`) | `quota.exceeded` — the one signal that makes the router skip the account |
+| `说明 · 计划 <name>` | `plan.name` |
+| reset time | `plan.next_refresh_date`, else `plan.next_due_date`; no `until` at all when both are null |
 
-A refused read (401/403) marks the sign-in lapsed; any other error is reported
-without a token. See `qwenworkUsage()` in `index.mjs`. `magpie quota qwenwork`
-prints it in the terminal:
+A refused read (401/403) marks the sign-in lapsed; anything else that cannot be
+read becomes one `说明 · 额度不可读（<reason>）` window — never a top-level
+`error`, which would replace the whole card. See `qwenworkUsage()` in
+`index.mjs`. `magpie quota qwenwork` prints it in the terminal:
 
 ```text
-qwenwork · Your Plan · until Nov 1 · you@example.com  subscription  Credits 1% (17.94 / 2000 credits)
+qwenwork · 个人免费版 · 七七@example.com  subscription  额度 · Credits 399.94 credits  说明 · 计划 个人免费版
 ```
 
 ## Notes
@@ -106,6 +109,7 @@ qwenwork · Your Plan · until Nov 1 · you@example.com  subscription  Credits 1
 ## Verify
 
 ```sh
+node --test        # offline: the usage card's shapes and naming
 node check.mjs     # offline, mocked upstream
 ./live-e2e.sh      # live: models, chat, streaming through the gateway
 ```
@@ -118,3 +122,4 @@ node check.mjs     # offline, mocked upstream
 - `defaults.json` — verified desktop configuration.
 - `icon.png` — the provider's picture, the QwenWork app icon.
 - `check.mjs`, `live-e2e.sh` — the offline and live checks.
+- `test/` — the usage card's tests (`node --test`).

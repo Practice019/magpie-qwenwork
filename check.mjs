@@ -51,6 +51,8 @@ try {
 
   let auth
   let rejectRefresh = false
+  // a free account: the gateway caps nothing, it only knows what is left
+  let freePlan = false
   // how the mock's agent_chat answers: a list of SSE bodies, one per call
   const agentReplies = []
   const sse = (delta, finish = null) => `data: ${JSON.stringify({ statusCodeValue: 200, body: JSON.stringify({ choices: [{ delta, finish_reason: finish }] }) })}\n\n`
@@ -67,7 +69,9 @@ try {
           return Response.json({ data: {
             user: { id: 'fixture-user', name: 'Fixture', email: '' },
             plan: { name: 'Fixture Plan', next_refresh_date: '2026-11-01T00:00:00Z' },
-            quota: { total: 2000, used: 17.8348, remaining: 1982.1652, exceeded: false },
+            quota: freePlan
+              ? { total: null, used: null, remaining: 399.9409, exceeded: false }
+              : { total: 2000, used: 17.8348, remaining: 1982.1652, exceeded: false },
           } })
         case '/api/v1/deviceToken/refresh':
           assert.equal(body.target, 'c')
@@ -121,10 +125,23 @@ try {
   assert.equal(usage.signIn, 'kept')
   assert.equal(usage.plan, 'Fixture Plan')
   assert.equal(usage.until, '2026-11-01T00:00:00.000Z')
-  assert.deepEqual(usage.windows, [{ name: 'Credits', used: (100 * 17.8348) / 2000, display: '17.83 / 2000 credits' }])
+  assert.deepEqual(usage.windows, [
+    { name: '额度 · Credits', used: (100 * 17.8348) / 2000, limit: 100, display: '17.83 / 2000 credits' },
+    { name: '说明 · 计划 Fixture Plan', aside: true, display: 'Fixture Plan' },
+  ])
+  // A free plan reports total: null — no cap, only a balance. That is a prepaid
+  // wallet: balance, no used/limit, and no "reports no credits" error.
+  freePlan = true
+  const free = await plugin.auth.usage(async () => auth)
+  assert.deepEqual(free.windows, [
+    { name: '额度 · Credits', balance: 399.9409, unit: 'credits', display: '399.94 credits' },
+    { name: '说明 · 计划 Fixture Plan', aside: true, display: 'Fixture Plan' },
+  ])
+  assert.equal(free.error, undefined, 'a known balance is never reported as no credits')
+  freePlan = false
   const usageGone = await plugin.auth.usage(async () => ({ ...auth, expires: Date.now() - 1 }))
   assert.equal(usageGone.signIn, 'expired')
-  checks.push('Usage reports the account\'s credits and plan')
+  checks.push('Usage reports the account\'s credits and plan (capped and free)')
 
   const loader = await plugin.auth.loader(async () => auth)
   const chat = (over = {}) => ({ model: 'fixture-model', messages: [{ role: 'user', content: 'fixture prompt' }], ...over })
