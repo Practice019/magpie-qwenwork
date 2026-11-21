@@ -1,6 +1,6 @@
 {
   "name": "opencode-qwenwork-auth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "QwenWork (千问办公) as a magpie / OpenCode provider, signing in through QwenWork's own device flow and serving its models over QwenWork's own agent endpoint — with the host's tools riding along.",
   "type": "module",
   "main": "./index.mjs",
