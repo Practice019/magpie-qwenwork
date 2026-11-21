@@ -5,6 +5,8 @@
 // the request codec and the endpoint stay in the adapter.
 import { createPublicKey } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { AUTH_OPTIONS, pasteTokenMethod } from './methods.mjs'
+import { makeImportHook } from './import.mjs'
 
 const defaults = JSON.parse(readFileSync(new URL('./defaults.json', import.meta.url), 'utf8'))
 // The provider's picture, as magpie reads it: a data:image URI on the auth hook.
@@ -123,13 +125,31 @@ export function qwenworkUsage(openapi) {
   }
 }
 
-export async function QwenWorkAuthPlugin({ client }) {
+export async function QwenWorkAuthPlugin(input = {}, options = {}) {
   const clientId = setting('CLIENT_ID')
   const web = origin('WEB')
   const openapi = origin('OPENAPI')
   const api = origin('API')
   const rsa = setting('RSA_PUBLIC_KEY').replaceAll('\\n', '\n')
   try { if (createPublicKey(rsa).asymmetricKeyType !== 'rsa') throw new Error() } catch { throw new Error('QWENWORK_RSA_PUBLIC_KEY must be an RSA public key in PEM form') }
+
+  // magpie 的配置目录（`plugin-auth.json` 在那里）。导入钩子用它做去重；
+  // 拿不到就当没有已存在的号 —— 少一次去重提示，比整个导入失败好。
+  const configDir = String(input?.directory ?? options?.configDir ?? '').trim()
+
+  // 界面开关的读法：**必须惰性**。宿主先调插件工厂、后登记钩子
+  // （host.js L1526 / L1544），而 `option()` 查的是已登记的钩子（L1760），
+  // 工厂期问出来的恒为「未声明的键 = false」。所以这里只定义读法，
+  // 真正去问的时机在钩子被调用时（每次调用都问，用户改了开关立刻生效）。
+  const option = (key, fallback) => {
+    try {
+      const v = input?.magpie?.option?.('qwenwork', key)
+      return typeof v === 'boolean' ? v : fallback
+    } catch {
+      return fallback
+    }
+  }
+
   const site = {
     id: 'qwenwork', name: 'QwenWork', clientId, web, openapi, api, rsaKey: rsa,
     cosyVersion: setting('COSY_VERSION'), redirect: 'qwenwork-cn://',
@@ -143,8 +163,33 @@ export async function QwenWorkAuthPlugin({ client }) {
     systemPrompt: 'You are QwenWork (qw), a helpful assistant. Use the instructions below and the tools available to you to assist the user.',
   }
   const { makePlugin } = await import('./vendor/qoder.mjs')
-  const plugin = await makePlugin(site)({ client })
+  const plugin = await makePlugin(site)({ client: input?.client })
   plugin.auth.usage = qwenworkUsage(openapi)
   plugin.auth.icon = pluginIcon
+
+  // ── 登录入口（协议 §6）：设备码 + 粘贴 token ──
+  //
+  // 设备码由 vendor 生成，这里**不替换**它，只按开关过滤，然后追加粘贴入口。
+  // ⚠ 开关在每次 `authorize` 时读（`option` 内部惰性），所以用户改设置立即生效。
+  const deviceMethod = (plugin.auth.methods ?? []).filter((m) => m?.type === 'oauth')
+  const pasteMethod = pasteTokenMethod({
+    openapi,
+    allowPaste: () => option('pastetoken', true),
+  })
+  plugin.auth.methods = [
+    ...(option('devicesignin', true) ? deviceMethod : []),
+    ...(option('pastetoken', true) ? [pasteMethod] : []),
+  ]
+  // 两个都关掉是配置错误：让界面至少留一条路，并让用户看到原因。
+  if (plugin.auth.methods.length === 0) {
+    plugin.auth.methods = [...deviceMethod, pasteMethod]
+  }
+
+  // ── 界面开关（协议 §2.10）──
+  plugin.auth.options = AUTH_OPTIONS
+
+  // ── 从文件导入（协议 §2.8）：`import` 与 `importFrom` 必须同时给 ──
+  Object.assign(plugin.auth, makeImportHook({ configDir, provider: 'qwenwork' }))
+
   return plugin
 }

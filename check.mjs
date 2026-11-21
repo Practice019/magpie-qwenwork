@@ -107,9 +107,16 @@ try {
   assert.deepEqual(config.provider.qwenwork.models, {})
   assert.equal(plugin.auth.provider, 'qwenwork')
   assert.equal(typeof plugin.auth.usage, 'function', 'the provider reports usage')
+  assert.equal(typeof plugin.auth.import, 'function', 'the provider takes an accounts file')
+  assert.equal(typeof plugin.auth.importFrom, 'string', 'import needs importFrom beside it')
   assert.match(plugin.auth.icon, /^data:image\/png;base64,/, 'the provider carries its own icon')
-  assert.equal(plugin.auth.methods.length, 1)
-  const login = await plugin.auth.methods[0].authorize()
+  // Two ways in: the vendor's device code and a pasted token. The device-code
+  // method is the one the rest of this file drives, so it is found by type
+  // rather than by position.
+  assert.equal(plugin.auth.methods.length, 2, 'device code and a pasted token')
+  const deviceMethod = plugin.auth.methods.find((m) => m.type === 'oauth')
+  assert.ok(deviceMethod, 'the device-code method is still there')
+  const login = await deviceMethod.authorize()
   const loginURL = new URL(login.url)
   assert.equal(loginURL.origin, values.WEB)
   assert.equal(loginURL.searchParams.get('client_id'), values.CLIENT_ID)

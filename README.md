@@ -98,11 +98,54 @@ read becomes one `说明 · 额度不可读（<reason>）` window — never a to
 qwenwork · 个人免费版 · 七七@example.com  subscription  额度 · Credits 399.94 credits  说明 · 计划 个人免费版
 ```
 
+## Sign-in
+
+Two ways, both in the "add a provider" sign-in dialog:
+
+| Way | What happens | When |
+| --- | --- | --- |
+| **Device code** (`Sign in with QwenWork`) | QwenWork's own: show a code, confirm in a browser | Default |
+| **Paste an access token** | The token is checked against `account-context` before it is kept | When device code cannot work (poll timeout, vendor outage, redirect failure) |
+
+Either can be switched off in the plugin's settings (`Allow device-code sign-in` /
+`Allow pasting an access token`). **Turning both off falls back to device code**, so
+the dialog never ends up with no way in.
+
+## Import from a file
+
+The provider editor offers "import accounts from a file". Four shapes are read:
+
+```jsonc
+// 1. one object
+{ "access": "eyJ...", "accountId": "uuid", "expires": 1797702136000 }
+
+// 2. an array
+[ { "access": "eyJ..." }, { "access": "eyJ..." } ]
+
+// 3. a version:1 container
+{ "version": 1, "accounts": [ { "access": "eyJ..." } ] }
+
+// 4. NDJSON, one object per line; a bad line drops only itself
+{ "access": "eyJ..." }
+{ "access": "eyJ..." }
+```
+
+- The token may be named `access`, `access_token`, `key` or `token`
+- `accountId` comes from `accountId`, then `user.id`, then the JWT's `sub`, then the
+  token's first 8 characters — it is never empty
+- A seconds-granularity `expires` is multiplied by 1000
+- A token already in `plugin-auth.json` is refused, naming the key it is under
+- At most 100 accounts per import; the rest are reported as "N not handled", never
+  dropped silently
+
 ## Notes
 
 - Only the chat completions endpoint is served. A lapsed sign-in is reported
   as such, and an upstream failure is trimmed and token-redacted before it
   reaches the caller.
+- **The vendor has no check-in endpoint** (five candidates under
+  `/api/v1/adapter/user/` all answered 404 on 2026-11-21, and `account-context`
+  carries no check-in field), so this plugin has no `auth.checkin`.
 - The provider's icon is the QwenWork app icon, used to identify the product.
 - MIT.
 

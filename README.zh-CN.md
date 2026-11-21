@@ -94,10 +94,48 @@ magpie 会在 provider 旁边显示账号的积分。数据取自登录时已经
 qwenwork · 个人免费版 · 七七@example.com  subscription  额度 · Credits 399.94 credits  说明 · 计划 个人免费版
 ```
 
+## 登录
+
+两条路，都在「添加提供商」的登录弹窗里：
+
+| 方式 | 走什么 | 什么时候用 |
+|---|---|---|
+| **设备码登录**（`Sign in with QwenWork`） | QwenWork 原生：显示一个码，在浏览器里确认 | 默认 |
+| **粘贴 access token** | 把 token 粘进来，插件先打一次 `account-context` 验证，通了才收 | 设备码走不通时（轮询超时 / 厂商故障 / redirect 打不开） |
+
+两条都能在插件设置里单独开关（`允许设备码登录` / `允许粘贴 access token`）。**两个都关掉时会自动保留设备码**，不会让人无路可走。
+
+## 从文件导入
+
+供应商编辑页里有「从文件导入账号…」。支持四种形状，都认：
+
+```jsonc
+// ① 单对象
+{ "access": "eyJ...", "accountId": "uuid", "expires": 1797702136000 }
+
+// ② 数组
+[ { "access": "eyJ..." }, { "access": "eyJ..." } ]
+
+// ③ version:1 容器
+{ "version": 1, "accounts": [ { "access": "eyJ..." } ] }
+
+// ④ NDJSON（一行一条，坏行只丢那一行）
+{ "access": "eyJ..." }
+{ "access": "eyJ..." }
+```
+
+- token 键名认 `access` / `access_token` / `key` / `token`
+- `accountId` 优先级：`accountId` → `user.id` → JWT 的 `sub` → token 前 8 位（**永不为空**）
+- `expires` 给秒级会自动 ×1000
+- 已在 `plugin-auth.json` 里的 token 会被拒，并说明是哪个 key
+- 单次最多 100 条；超出会多返回一条「还有 N 条未处理」，**不静默截断**
+
 ## 说明
 
 - 只服务 chat completions 端点。登录失效会明确报出；上游错误在返回给调用方前
   会做裁剪并脱敏 token。
+- **上游没有签到接口**（实测 `/api/v1/adapter/user/daily-checkin` 等五个候选全部 404，
+  `account-context` 也不返回签到字段），所以本插件不提供 `auth.checkin`。
 - provider 图标用的是千问办公的应用图标，用于标识该产品。
 - MIT。
 

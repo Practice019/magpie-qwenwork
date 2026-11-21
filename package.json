@@ -22,7 +22,9 @@
     "check.mjs",
     "defaults.json",
     "icon.png",
+    "import.mjs",
     "index.mjs",
+    "methods.mjs",
     "vendor"
   ],
   "magpie": {
