@@ -1,3 +1,7 @@
+// ⚠️ 本地改动记录（2026-11-27，P2）：`models()` 的三处回退改为 `fellBack()`，
+//    给非账号自身的列表打上 Symbol.for("magpie.fellBack") 标记（CONTRACT 6-02）。
+//    重新同步 vendor 时**必须**把这段改动带回去，否则标记会丢。
+//
 // Sign-in and model-catalog code shared by the Qoder and QwenWork providers.
 // It began as the Qoder plugin (github.com/magpie-community/plugins, MIT),
 // whose protocol was in turn ported from magpie's internal/qoder, itself from
@@ -1443,7 +1447,9 @@ export const makePlugin = (site) => async ({ client }) => {
     provider: {
       id: ID,
       async models(provider, { auth } = {}) {
-        if (auth?.type !== "oauth") return provider.models
+        // CONTRACT 6-02: a list that is not the account's own must say so, or
+        // the host routes by defaults that nobody verified.
+        if (auth?.type !== "oauth") return fellBack(provider.models)
         let cred
         try {
           cred = await fresh(async () => auth)
@@ -1451,23 +1457,30 @@ export const makePlugin = (site) => async ({ client }) => {
           // the built-in listed through QoderCredentialOf: a refused job
           // refresh marked the account there; anything else marked nothing
           if (e?.expired) throw Object.assign(new Error(e.message), { signIn: "expired" })
-          return provider.models
+          return fellBack(provider.models)
         }
         if (renewals.has(cred)) unsaid.add(listingKey(cred))
         try {
           const ms = await models(cred, true)
-          if (!ms.length) return provider.models
+          if (!ms.length) return fellBack(provider.models)
           const s = siteOf(site, cred)
           return Object.fromEntries(
             ms.map((m) => [m.key, runtimeModel(s, { id: m.key, name: m.name, context: m.context, images: m.images, efforts: m.thinks ? m.efforts : [], free: m.free, rate: m.rate, rateWas: m.rateWas })]),
           )
         } catch (e) {
           if (process.env.MAGPIE_QWENWORK_DEBUG_MODELS === "1") console.error(`${site.name} model list failed:`, e)
-          return provider.models
+          return fellBack(provider.models)
         }
       },
     },
   }
+}
+
+// fellBack marks a list that is not the account's own: the host reads
+// Symbol.for("magpie.fellBack") and never routes by such a list as if it were
+// the account's plan (CONTRACT 6-02).
+function fellBack(models) {
+  return Object.assign({ ...(models ?? {}) }, { [Symbol.for("magpie.fellBack")]: true })
 }
 
 export const QoderAuthPlugin = makePlugin(SITES.qoder)
