@@ -1,5 +1,8 @@
 # opencode-qwenwork-auth — QwenWork (千问办公) for magpie / OpenCode
 
+> **改这个插件前先读 [AGENTS.md](./AGENTS.md)** —— 尤其是「不要重启 magpie」那一条。
+
+
 [中文说明 / Chinese](README.zh-CN.md)
 
 ![Platform](https://img.shields.io/badge/platform-macOS-blue) ![Platform](https://img.shields.io/badge/platform-Windows-blue)
@@ -16,6 +19,11 @@ the host agent's tools riding along.
 | `qwenwork` | 千问办公 (`gateway.qwenwork.cn`) | the account's own `qwork` catalog |
 
 The package exports `QwenWorkAuthPlugin`.
+
+
+```
+供应商   qwenwork（模型名 qwenwork/<id>）
+```
 
 ## Install
 
